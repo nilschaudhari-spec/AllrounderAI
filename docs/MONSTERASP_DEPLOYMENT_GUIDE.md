@@ -1,51 +1,54 @@
 # ALL ROUNDER AI – MONSTERASP.NET DEPLOYMENT GUIDE
 
+**GitHub Repository:** [https://github.com/nilschaudhari-spec/AllrounderAI.git](https://github.com/nilschaudhari-spec/AllrounderAI.git)  
 **Target Host:** [MonsterASP.NET](https://monsterasp.net/)  
 **Database:** PostgreSQL (`db80695.databaseasp.net:5432`, Database: `db80695`)  
 **Application:** ALL ROUNDER AI Web API & SignalR Real-Time Hub  
-**Published Packages:**
-- `AllRounderAi_Api_MonsterASP_SelfContained.zip` *(Recommended – includes .NET 10 win-x64 runtime & PostgreSQL driver)*
-- `AllRounderAi_Api_MonsterASP_FrameworkDependent.zip` *(Lightweight)*
 
 ---
 
-## 1. Database Configuration
-The application is pre-configured with your MonsterASP.NET PostgreSQL connection string in both `appsettings.json` and `appsettings.Production.json`:
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Server=db80695.databaseasp.net;Port=5432;Database=db80695;User Id=db80695;Password=6x?F!5Rd4e-D;"
-  }
-}
-```
-
-### Automatic Table Initialization
-When the API boots up on MonsterASP.NET, a background task automatically connects to `db80695.databaseasp.net` and runs `CREATE TABLE IF NOT EXISTS` for all system tables:
-- `users`, `exchanges`, `instruments`
-- `historical_candles`, `strategies`, `trading_signals`
-- `paper_accounts`, `paper_orders`, `backtest_results`
-- Pre-seeds default exchanges: `NSE`, `BSE`, `MCX`.
-
----
-
-## 2. Instant Deployment via MonsterASP.NET Control Panel
+## Method 1: Deploy Directly from Git (MonsterASP.NET Control Panel)
 
 1. Log in to your [MonsterASP.NET Control Panel](https://monsterasp.net/).
-2. Open your website (e.g., `allrounderai.runasp.net`).
-3. Click **File Manager** on the left menu.
-4. Navigate into the root web folder (or `site/wwwroot/`).
-5. Delete any existing default files (e.g. `default.aspx`, `index.html`).
-6. Click **Upload** and upload:
-   ```text
-   d:\Nilesh\Nilesh\AI Stocks Scanner\AllRounderAi_Api_MonsterASP_SelfContained.zip
-   ```
-7. Click the uploaded file and select **Extract**.
-8. Verify that `AllRounderAi.WebApi.exe`, `web.config`, `Npgsql.dll`, and `appsettings.json` are present in the folder.
-9. Visit your site URL in the browser (e.g., `http://your-site.runasp.net/`).
+2. Navigate to **Web Sites** $\rightarrow$ Click on your site (e.g., `your-site.runasp.net`).
+3. Under the site settings, click **Git Deployment** (or **Source Control**).
+4. Enter the GitHub repository details:
+   - **Repository URL:** `https://github.com/nilschaudhari-spec/AllrounderAI.git`
+   - **Branch:** `main`
+   - **Solution / Project Path:** `AllRounderAi.sln` (or `backend/src/AllRounderAi.WebApi/AllRounderAi.WebApi.csproj`)
+5. Click **Connect & Deploy**.
+6. MonsterASP.NET pulls the code, restores packages (`Npgsql`), builds the Web API, and hosts it under IIS.
 
 ---
 
-## 3. Verified Endpoints & Database Verification
+## Method 2: Automated Continuous Deployment via GitHub Actions
+
+The repository includes a ready-to-run GitHub Actions workflow (`.github/workflows/deploy.yml`):
+
+1. In MonsterASP.NET Control Panel, download your `.publishSettings` file (**Web Sites -> Web Deploy -> Download Publish Profile**).
+2. Open your GitHub Repository:  
+   👉 [https://github.com/nilschaudhari-spec/AllrounderAI/settings/secrets/actions](https://github.com/nilschaudhari-spec/AllrounderAI/settings/secrets/actions)
+3. Click **New repository secret**:
+   - **Name:** `MONSTERASP_PUBLISH_SETTINGS`
+   - **Value:** Paste the full XML content of your `.publishSettings` file.
+4. Click **Add secret**.
+5. Any new push to `main` will automatically build, execute unit tests, publish the self-contained package, and deploy directly to your MonsterASP.NET website via MSDeploy!
+
+---
+
+## Method 3: Instant Zip Upload via MonsterASP.NET File Manager
+
+If you ever want an instant offline or manual update without Git:
+1. In MonsterASP.NET Control Panel, click **File Manager**.
+2. Open the root folder (`/` or `site/wwwroot/`).
+3. Upload `AllRounderAi_Api_MonsterASP_SelfContained.zip`.
+4. Click the file and select **Extract**.
+
+---
+
+## Live Endpoints & Database Verification
+
+Once deployed via Git, verify your endpoints:
 
 | Endpoint | Method | Expected Output |
 |:---|:---:|:---|
