@@ -1,0 +1,32 @@
+## Build and Publish outputs
+**/bin/
+**/obj/
+**/publish/
+**/publish_selfcontained/
+*.zip
+
+## Visual Studio & Rider
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+
+## Android & Gradle
+.gradle/
+**/build/
+local.properties
+.cxx/
+*.apk
+*.aab
+
+## Logs
+logs/
+*.log
+
+## OS Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store

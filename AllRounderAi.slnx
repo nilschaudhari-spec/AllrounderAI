@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/AllRounderAi.Core/AllRounderAi.Core.csproj" />
+    <Project Path="backend/src/AllRounderAi.WebApi/AllRounderAi.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/AllRounderAi.Tests/AllRounderAi.Tests.csproj" />
+  </Folder>
+</Solution>

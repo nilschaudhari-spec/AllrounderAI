@@ -1,0 +1,63 @@
+name: Build and Deploy to MonsterASP.NET
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore AllRounderAi.sln
+
+      - name: Build Solution
+        run: dotnet build AllRounderAi.sln --configuration Release --no-restore
+
+      - name: Run Tests
+        run: dotnet test backend/tests/AllRounderAi.Tests/AllRounderAi.Tests.csproj --configuration Release --no-build --verbosity normal
+
+      - name: Publish Web API (Self-Contained win-x64 for MonsterASP.NET)
+        run: |
+          dotnet publish backend/src/AllRounderAi.WebApi/AllRounderAi.WebApi.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --output ./publish_output
+
+      - name: Deploy to MonsterASP.NET (Web Deploy)
+        if: env.PUBLISH_PROFILE != ''
+        env:
+          PUBLISH_PROFILE: ${{ secrets.MONSTERASP_PUBLISH_SETTINGS }}
+        shell: pwsh
+        run: |
+          $xml = [xml]$env:PUBLISH_PROFILE
+          $profile = $xml.publishData.publishProfile | Where-Object { $_.publishMethod -eq "MSDeploy" } | Select-Object -First 1
+          if ($profile) {
+            $msdeploy = "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+            & $msdeploy -verb:sync `
+              -source:contentPath="$(Get-Location)\publish_output" `
+              -dest:contentPath=$profile.msdeploySite,publishUrl="https://$($profile.publishUrl):8172/msdeploy.axd",userName=$profile.userName,password=$profile.userPWD,authtype="Basic" `
+              -allowUntrusted
+            Write-Host "Deployment to MonsterASP.NET completed successfully!"
+          } else {
+            Write-Host "No MSDeploy profile found in secrets. Skipping direct deployment."
+          }
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: monsterasp-publish-package
+          path: ./publish_output/
