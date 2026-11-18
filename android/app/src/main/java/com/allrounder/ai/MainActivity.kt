@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     var currentSymbol by remember { mutableStateOf("NIFTY 50") }
+                    var currentHammerDetection by remember { mutableStateOf(com.allrounder.ai.domain.model.HammerDetectionDetailDto()) }
 
                     NavHost(navController = navController, startDestination = "home") {
                         composable("home") {
@@ -74,7 +75,11 @@ class MainActivity : ComponentActivity() {
                             StrategiesScreen(
                                 onBack = { navController.popBackStack() },
                                 onSelectStrategy = { strat ->
-                                    navController.navigate("scanner")
+                                    if (strat.strategyId.equals("HAMMER", ignoreCase = true)) {
+                                        navController.navigate("hammer_scanner")
+                                    } else {
+                                        navController.navigate("scanner")
+                                    }
                                 },
                                 onOpenChart = { symbol ->
                                     currentSymbol = symbol
@@ -84,6 +89,40 @@ class MainActivity : ComponentActivity() {
                                     currentSignal = signal
                                     navController.navigate("signal_detail")
                                 }
+                            )
+                        }
+
+                        composable("hammer_scanner") {
+                            HammerScannerScreen(
+                                onBack = { navController.popBackStack() },
+                                onSelectDetection = { detection ->
+                                    currentHammerDetection = detection
+                                    navController.navigate("hammer_analysis")
+                                },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
+                                },
+                                onOpenSettings = {
+                                    navController.navigate("hammer_settings")
+                                }
+                            )
+                        }
+
+                        composable("hammer_analysis") {
+                            HammerAnalysisScreen(
+                                detection = currentHammerDetection,
+                                onBack = { navController.popBackStack() },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
+                                }
+                            )
+                        }
+
+                        composable("hammer_settings") {
+                            HammerSettingsScreen(
+                                onBack = { navController.popBackStack() }
                             )
                         }
 

@@ -78,6 +78,34 @@ interface AllRounderApiService {
 
     @GET("api/v1/papertrading/portfolio")
     suspend fun getPaperPortfolio(): Response<PaperPortfolioResponse>
+
+    // ========================================================================
+    // HAMMER STRATEGY INSTITUTIONAL API
+    // ========================================================================
+
+    @GET("api/strategies/hammer/config")
+    suspend fun getHammerConfig(@Query("preset") preset: String? = null): Response<HammerConfigDto>
+
+    @PUT("api/strategies/hammer/config")
+    suspend fun updateHammerConfig(@Body config: HammerConfigDto): Response<HammerConfigDto>
+
+    @POST("api/strategies/hammer/config/reset")
+    suspend fun resetHammerConfig(): Response<Any>
+
+    @GET("api/strategies/hammer/scanner")
+    suspend fun getHammerScanner(
+        @Query("scope") scope: String? = "ALL",
+        @Query("exchange") exchange: String? = "ALL",
+        @Query("timeframe") timeframe: String? = "5m",
+        @Query("status") status: String? = "ALL",
+        @Query("minScore") minScore: Double = 55.0
+    ): Response<HammerScannerResponse>
+
+    @POST("api/strategies/hammer/scanner/run")
+    suspend fun runHammerScanner(@Body request: HammerScanApiRequest): Response<Any>
+
+    @GET("api/strategies/hammer/{instrumentId}/analysis")
+    suspend fun getHammerAnalysis(@Path("instrumentId") instrumentId: String): Response<HammerDetectionDetailDto>
 }
 
 data class CandlesResponse(

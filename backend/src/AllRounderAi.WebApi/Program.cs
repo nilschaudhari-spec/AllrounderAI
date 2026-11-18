@@ -56,6 +56,10 @@ app.MapGet("/", async (IDatabaseService db) =>
         },
         Endpoints = new[]
         {
+            "/api/strategies/hammer/config",
+            "/api/strategies/hammer/scanner",
+            "/api/strategies/hammer/signals",
+            "/api/strategies/hammer/RELIANCE/analysis",
             "/api/v1/strategies",
             "/api/v1/strategies/DAILY_INTRADAY_5M/signals",
             "/api/v1/market/instruments",

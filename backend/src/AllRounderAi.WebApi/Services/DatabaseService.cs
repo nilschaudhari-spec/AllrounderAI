@@ -212,6 +212,66 @@ namespace AllRounderAi.WebApi.Services
                         max_drawdown NUMERIC(15, 2) NOT NULL,
                         sharpe_ratio NUMERIC(6, 2),
                         executed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );",
+
+                    @"CREATE TABLE IF NOT EXISTS hammer_configs (
+                        config_id VARCHAR(100) PRIMARY KEY,
+                        level VARCHAR(30) NOT NULL DEFAULT 'GLOBAL',
+                        target_instrument_id VARCHAR(100),
+                        target_timeframe VARCHAR(20),
+                        version INT NOT NULL DEFAULT 1,
+                        config_json JSONB NOT NULL,
+                        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );",
+
+                    @"CREATE TABLE IF NOT EXISTS hammer_detections (
+                        detection_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                        instrument_id VARCHAR(100) NOT NULL,
+                        exchange VARCHAR(20) NOT NULL,
+                        segment VARCHAR(30) NOT NULL,
+                        timeframe VARCHAR(20) NOT NULL,
+                        candle_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+                        open NUMERIC(15, 4) NOT NULL,
+                        high NUMERIC(15, 4) NOT NULL,
+                        low NUMERIC(15, 4) NOT NULL,
+                        close NUMERIC(15, 4) NOT NULL,
+                        volume BIGINT NOT NULL DEFAULT 0,
+                        pattern_status VARCHAR(50) NOT NULL,
+                        lower_wick_ratio NUMERIC(10, 4) NOT NULL,
+                        upper_wick_ratio NUMERIC(10, 4) NOT NULL,
+                        body_ratio NUMERIC(10, 4) NOT NULL,
+                        body_position NUMERIC(10, 4) NOT NULL,
+                        atr NUMERIC(15, 4) NOT NULL,
+                        trend_state VARCHAR(50) NOT NULL,
+                        support_data JSONB,
+                        volume_ratio NUMERIC(10, 4),
+                        confirmation_mode VARCHAR(30) NOT NULL,
+                        score NUMERIC(5, 2) NOT NULL,
+                        config_version INT NOT NULL DEFAULT 1,
+                        entry_price NUMERIC(15, 4),
+                        stop_loss_price NUMERIC(15, 4),
+                        target_price NUMERIC(15, 4),
+                        risk_reward_ratio NUMERIC(5, 2) NOT NULL DEFAULT 1.0,
+                        detected_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );",
+
+                    @"CREATE TABLE IF NOT EXISTS hammer_signals (
+                        signal_id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                        detection_id UUID REFERENCES hammer_detections(detection_id) ON DELETE CASCADE,
+                        instrument_id VARCHAR(100) NOT NULL,
+                        trading_symbol VARCHAR(100) NOT NULL,
+                        exchange VARCHAR(20) NOT NULL,
+                        timeframe VARCHAR(20) NOT NULL,
+                        signal_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+                        signal_type VARCHAR(20) NOT NULL DEFAULT 'BUY',
+                        status VARCHAR(30) NOT NULL DEFAULT 'CONFIRMED',
+                        entry_price NUMERIC(15, 4) NOT NULL,
+                        stop_loss_price NUMERIC(15, 4) NOT NULL,
+                        target_price NUMERIC(15, 4) NOT NULL,
+                        risk_reward_ratio NUMERIC(5, 2) NOT NULL DEFAULT 1.0,
+                        quality_score NUMERIC(5, 2) NOT NULL,
+                        explanation TEXT,
+                        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
                     );"
                 };
 
