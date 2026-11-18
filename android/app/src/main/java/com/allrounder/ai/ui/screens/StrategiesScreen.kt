@@ -452,6 +452,25 @@ val FallbackStrategies = listOf(
         )
     ),
     StrategyInfo(
+        strategyId = "INVERSE_HAMMER",
+        name = "Inverse Hammer Reversal",
+        category = "CANDLESTICK",
+        direction = "BULLISH",
+        pptSlideReference = "Slides 11-12",
+        description = "Powerful bottom reversal pattern appearing at downtrend termination. Upper shadow is at least 2x the body size with small lower shadow.",
+        defaultTimeframe = "15m",
+        riskRewardRatio = 1.0,
+        winRateBenchmark = 88.5,
+        rules = listOf(
+            "Must form after a clear preceding downtrend or at support level",
+            "Upper shadow length must be >= 2x real candle body",
+            "Lower shadow must be small (<= 10% of total candle range)",
+            "Body positioned in lower 40% of candle range",
+            "Bullish confirmation on candle close or breakout of high",
+            "Strict 1:1 risk-to-reward target planning"
+        )
+    ),
+    StrategyInfo(
         strategyId = "HIGH_BREAK_CLOSE_DOWNSIDE",
         name = "High Break, Close Downside",
         category = "BREAKOUT",

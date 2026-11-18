@@ -253,3 +253,99 @@ data class HammerScanApiRequest(
     val minScore: Double = 60.0,
     val limit: Int = 40
 )
+
+data class InverseHammerConfigDto(
+    var configId: String = "GLOBAL_DEFAULT",
+    var patternEnabled: Boolean = true,
+    var minUpperWickToBodyRatio: Double = 2.0,
+    var maxLowerWickToRangeRatio: Double = 0.10,
+    var maxBodyToRangeRatio: Double = 0.35,
+    var maxBodyPosition: Double = 0.40,
+    var minCandleRangeToAtrRatio: Double = 0.50,
+    var atrPeriod: Int = 14,
+    var trendLookback: Int = 5,
+    var requireDowntrend: Boolean = true,
+    var trendMode: String = "Moderate",
+    var requireSupportProximity: Boolean = false,
+    var maxSupportDistanceAtr: Double = 1.0,
+    var requireVolumeConfirmation: Boolean = false,
+    var volumeRequirementMode: String = "Advisory",
+    var minVolumeRatio: Double = 1.50,
+    var confirmationMode: String = "CandleClose",
+    var requireNextCandleConfirmation: Boolean = false,
+    var nextCandleConfirmationMethod: String = "CloseAboveInverseHammerHigh",
+    var scoreThreshold: Double = 70.0,
+    var riskRewardRatio: Double = 1.0,
+    var stopLossBufferAtr: Double = 0.10
+)
+
+data class InverseHammerCandleGeometryDto(
+    val isValid: Boolean = true,
+    val range: Double = 0.0,
+    val body: Double = 0.0,
+    val upperWick: Double = 0.0,
+    val lowerWick: Double = 0.0,
+    val upperWickToBodyRatio: Double = 0.0,
+    val lowerWickToRangeRatio: Double = 0.0,
+    val bodyToRangeRatio: Double = 0.0,
+    val bodyPosition: Double = 0.0,
+    val rangeToAtrRatio: Double = 0.0,
+    val isBullishColor: Boolean = true,
+    val isZeroBodyDoji: Boolean = false
+)
+
+data class InverseHammerScoreBreakdownDto(
+    val component: String,
+    val maxPoints: Double,
+    val awardedPoints: Double,
+    val notes: String = ""
+)
+
+data class InverseHammerScoreDto(
+    val finalScore: Double = 0.0,
+    val classification: String = "Strong",
+    val breakdown: List<InverseHammerScoreBreakdownDto> = emptyList(),
+    val summary: String = ""
+)
+
+data class InverseHammerDetectionDetailDto(
+    val detectionId: String = "",
+    val instrumentId: String = "",
+    val tradingSymbol: String = "",
+    val exchange: String = "NSE",
+    val segment: String = "Equity",
+    val timeframe: String = "5m",
+    val candleTimestamp: String = "",
+    val patternStatus: String = "NO_TRADE",
+    val geometry: InverseHammerCandleGeometryDto = InverseHammerCandleGeometryDto(),
+    val trend: TrendEvaluationDto = TrendEvaluationDto(),
+    val support: SupportEvaluationDto = SupportEvaluationDto(),
+    val volume: VolumeEvaluationDto = VolumeEvaluationDto(),
+    val confirmation: ConfirmationEvaluationDto = ConfirmationEvaluationDto(),
+    val score: InverseHammerScoreDto = InverseHammerScoreDto(),
+    val atr: Double = 0.0,
+    val entryPrice: Double = 0.0,
+    val stopLossPrice: Double = 0.0,
+    val targetPrice: Double = 0.0,
+    val riskRewardRatio: Double = 1.0,
+    val recommendedPositionSize: Int = 1,
+    val riskAmount: Double = 0.0,
+    val explainabilityBulletPoints: List<String> = emptyList(),
+    val generatedSignal: Signal? = null
+)
+
+data class InverseHammerScannerResponse(
+    val totalMatches: Int = 0,
+    val scope: String = "ALL",
+    val exchange: String = "ALL",
+    val timeframe: String = "5m",
+    val results: List<InverseHammerDetectionDetailDto> = emptyList()
+)
+
+data class InverseHammerScanApiRequest(
+    val scope: String = "ALL",
+    val exchange: String = "ALL",
+    val timeframe: String = "5m",
+    val minScore: Double = 60.0,
+    val limit: Int = 40
+)

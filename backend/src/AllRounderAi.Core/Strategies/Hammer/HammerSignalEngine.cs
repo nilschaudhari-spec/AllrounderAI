@@ -50,7 +50,7 @@ namespace AllRounderAi.Core.Strategies.Hammer
                 TradingSymbol = instrument.TradingSymbol,
                 Exchange = instrument.Exchange,
                 Segment = instrument.Segment.ToString(),
-                Timeframe = config.Timeframes.Count > 0 ? config.Timeframes[0] : "5m"
+                Timeframe = config.Timeframes.Contains("5m") ? "5m" : (config.Timeframes.Count > 0 ? config.Timeframes[0] : "5m")
             };
 
             int idx = targetIndex >= 0 ? targetIndex : candles.Count - 1;

@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
                     }
                     var currentSymbol by remember { mutableStateOf("NIFTY 50") }
                     var currentHammerDetection by remember { mutableStateOf(com.allrounder.ai.domain.model.HammerDetectionDetailDto()) }
+                    var currentInverseHammerDetection by remember { mutableStateOf(com.allrounder.ai.domain.model.InverseHammerDetectionDetailDto()) }
 
                     NavHost(navController = navController, startDestination = "home") {
                         composable("home") {
@@ -77,6 +78,8 @@ class MainActivity : ComponentActivity() {
                                 onSelectStrategy = { strat ->
                                     if (strat.strategyId.equals("HAMMER", ignoreCase = true)) {
                                         navController.navigate("hammer_scanner")
+                                    } else if (strat.strategyId.equals("INVERSE_HAMMER", ignoreCase = true)) {
+                                        navController.navigate("inverse_hammer_scanner")
                                     } else {
                                         navController.navigate("scanner")
                                     }
@@ -122,6 +125,40 @@ class MainActivity : ComponentActivity() {
 
                         composable("hammer_settings") {
                             HammerSettingsScreen(
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+
+                        composable("inverse_hammer_scanner") {
+                            InverseHammerScannerScreen(
+                                onBack = { navController.popBackStack() },
+                                onSelectDetection = { detection ->
+                                    currentInverseHammerDetection = detection
+                                    navController.navigate("inverse_hammer_analysis")
+                                },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
+                                },
+                                onOpenSettings = {
+                                    navController.navigate("inverse_hammer_settings")
+                                }
+                            )
+                        }
+
+                        composable("inverse_hammer_analysis") {
+                            InverseHammerAnalysisScreen(
+                                detection = currentInverseHammerDetection,
+                                onBack = { navController.popBackStack() },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
+                                }
+                            )
+                        }
+
+                        composable("inverse_hammer_settings") {
+                            InverseHammerSettingsScreen(
                                 onBack = { navController.popBackStack() }
                             )
                         }

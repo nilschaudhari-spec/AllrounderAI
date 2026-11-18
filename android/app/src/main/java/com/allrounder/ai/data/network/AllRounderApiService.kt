@@ -106,6 +106,31 @@ interface AllRounderApiService {
 
     @GET("api/strategies/hammer/{instrumentId}/analysis")
     suspend fun getHammerAnalysis(@Path("instrumentId") instrumentId: String): Response<HammerDetectionDetailDto>
+
+    // Inverse Hammer Endpoints
+    @GET("api/strategies/inverse-hammer/config")
+    suspend fun getInverseHammerConfig(@Query("preset") preset: String? = null): Response<InverseHammerConfigDto>
+
+    @PUT("api/strategies/inverse-hammer/config")
+    suspend fun updateInverseHammerConfig(@Body config: InverseHammerConfigDto): Response<InverseHammerConfigDto>
+
+    @POST("api/strategies/inverse-hammer/config/reset")
+    suspend fun resetInverseHammerConfig(): Response<Any>
+
+    @GET("api/strategies/inverse-hammer/scanner")
+    suspend fun getInverseHammerScanner(
+        @Query("scope") scope: String? = "ALL",
+        @Query("exchange") exchange: String? = "ALL",
+        @Query("timeframe") timeframe: String? = "5m",
+        @Query("status") status: String? = "ALL",
+        @Query("minScore") minScore: Double = 55.0
+    ): Response<InverseHammerScannerResponse>
+
+    @POST("api/strategies/inverse-hammer/scanner/run")
+    suspend fun runInverseHammerScanner(@Body request: InverseHammerScanApiRequest): Response<Any>
+
+    @GET("api/strategies/inverse-hammer/{instrumentId}/analysis")
+    suspend fun getInverseHammerAnalysis(@Path("instrumentId") instrumentId: String): Response<InverseHammerDetectionDetailDto>
 }
 
 data class CandlesResponse(

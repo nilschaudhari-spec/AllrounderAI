@@ -45,50 +45,16 @@ namespace AllRounderAi.Core.Strategies
 
         public StrategyMatchResult Evaluate(IReadOnlyList<Candle> candles, Instrument instrument, StrategyConfig config, int currentIndex = -1)
         {
-            int idx = currentIndex >= 0 ? currentIndex : candles.Count - 1;
-            if (idx < 5) return new StrategyMatchResult { IsMatched = false };
-
-            var c = candles[idx];
-            bool priorDowntrend = candles[idx - 1].Close < candles[idx - 5].Close;
-            bool isInvHammer = c.Body > 0 && c.UpperWick >= (2.0m * c.Body) && c.LowerWick <= (0.15m * c.Range);
-
-            var conditions = new List<ConditionResult>
+            var invHammerConfig = new InverseHammer.InverseHammerPatternConfig
             {
-                new() { ConditionName = "Prior Downtrend", IsSatisfied = priorDowntrend, ExpectedValue = "Bearish Trend", ActualValue = priorDowntrend ? "Downtrend" : "Uptrend" },
-                new() { ConditionName = "Upper Wick >= 2x Body", IsSatisfied = c.UpperWick >= (2.0m * c.Body), ExpectedValue = $">= {2.0m * c.Body:F2}", ActualValue = $"{c.UpperWick:F2}" },
-                new() { ConditionName = "Lower Wick Minimal", IsSatisfied = c.LowerWick <= (0.15m * c.Range), ExpectedValue = $"<= {0.15m * c.Range:F2}", ActualValue = $"{c.LowerWick:F2}" }
+                RiskRewardRatio = config.RiskRewardRatio,
+                ConfirmationMode = config.ConfirmationMode
             };
 
-            if (priorDowntrend && isInvHammer)
+            var detail = InverseHammer.InverseHammerSignalEngine.AnalyzeInverseHammer(candles, instrument, invHammerConfig, currentIndex);
+            if (detail.PatternStatus == "BUY" && detail.GeneratedSignal != null)
             {
-                decimal entry = c.High + instrument.TickSize;
-                decimal stopLoss = c.Low - instrument.TickSize;
-                decimal risk = entry - stopLoss;
-                decimal target = entry + (risk * config.RiskRewardRatio);
-
-                var signal = new TradingSignal
-                {
-                    InstrumentId = instrument.InstrumentId,
-                    TradingSymbol = instrument.TradingSymbol,
-                    Exchange = instrument.Exchange,
-                    StrategyId = StrategyId,
-                    StrategyName = StrategyName,
-                    PptSlideReference = PptSlideReference,
-                    SignalType = SignalDirection.Buy,
-                    Status = SignalStatus.Confirmed,
-                    Timeframe = config.Timeframe,
-                    SignalTimestamp = c.Timestamp,
-                    EntryPrice = entry,
-                    TargetPrice = target,
-                    StopLossPrice = stopLoss,
-                    RiskRewardRatio = config.RiskRewardRatio,
-                    QualityScore = 80.0m,
-                    MarketTrend = "Bullish Reversal",
-                    ConfirmationMode = config.ConfirmationMode,
-                    AnalysisSummary = "Inverse Hammer formed in downtrend with long upper shadow signaling buying pressure test.",
-                    Conditions = conditions
-                };
-                return new StrategyMatchResult { IsMatched = true, Signal = signal };
+                return new StrategyMatchResult { IsMatched = true, Signal = detail.GeneratedSignal };
             }
 
             return new StrategyMatchResult { IsMatched = false };
