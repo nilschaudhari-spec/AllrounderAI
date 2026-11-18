@@ -243,6 +243,56 @@ namespace AllRounderAi.WebApi.Services
                     await seedCmd.ExecuteNonQueryAsync();
                 }
 
+                // Seed PPT Strategies
+                var allStrategies = AllRounderAi.Core.Services.StrategyRegistry.GetAllStrategies();
+                foreach (var strat in allStrategies)
+                {
+                    const string seedStratSql = @"
+                        INSERT INTO strategies (strategy_id, name, category, direction, ppt_slide_reference, description, default_timeframe, is_active)
+                        VALUES (@id, @name, @cat, @dir, @ppt, @desc, @tf, TRUE)
+                        ON CONFLICT (strategy_id) DO UPDATE SET
+                            name = EXCLUDED.name,
+                            category = EXCLUDED.category,
+                            direction = EXCLUDED.direction,
+                            ppt_slide_reference = EXCLUDED.ppt_slide_reference,
+                            description = EXCLUDED.description;";
+                    await using var sCmd = new NpgsqlCommand(seedStratSql, conn);
+                    sCmd.Parameters.AddWithValue("@id", strat.StrategyId);
+                    sCmd.Parameters.AddWithValue("@name", strat.Name);
+                    sCmd.Parameters.AddWithValue("@cat", strat.Category);
+                    sCmd.Parameters.AddWithValue("@dir", strat.Direction);
+                    sCmd.Parameters.AddWithValue("@ppt", strat.PptSlideReference);
+                    sCmd.Parameters.AddWithValue("@desc", strat.Description);
+                    sCmd.Parameters.AddWithValue("@tf", strat.DefaultTimeframe);
+                    await sCmd.ExecuteNonQueryAsync();
+                }
+
+                // Seed Comprehensive Stock Universe (NSE and BSE)
+                var allInstruments = AllRounderAi.Core.Services.StockUniverseService.GetAllInstruments();
+                foreach (var inst in allInstruments)
+                {
+                    const string seedInstSql = @"
+                        INSERT INTO instruments (exchange_id, symbol, trading_symbol, name, segment, instrument_type, lot_size, tick_size, is_fno_eligible, is_active)
+                        VALUES (@ex, @sym, @tsym, @name, @seg, @type, @lot, @tick, @fno, TRUE)
+                        ON CONFLICT (trading_symbol) DO UPDATE SET
+                            exchange_id = EXCLUDED.exchange_id,
+                            name = EXCLUDED.name,
+                            segment = EXCLUDED.segment,
+                            lot_size = EXCLUDED.lot_size,
+                            is_fno_eligible = EXCLUDED.is_fno_eligible;";
+                    await using var iCmd = new NpgsqlCommand(seedInstSql, conn);
+                    iCmd.Parameters.AddWithValue("@ex", inst.Exchange);
+                    iCmd.Parameters.AddWithValue("@sym", inst.Symbol);
+                    iCmd.Parameters.AddWithValue("@tsym", inst.TradingSymbol);
+                    iCmd.Parameters.AddWithValue("@name", inst.Name);
+                    iCmd.Parameters.AddWithValue("@seg", inst.Segment.ToString());
+                    iCmd.Parameters.AddWithValue("@type", inst.Segment == AllRounderAi.Core.Models.ExchangeSegment.Index ? "INDEX" : "EQUITY");
+                    iCmd.Parameters.AddWithValue("@lot", inst.LotSize);
+                    iCmd.Parameters.AddWithValue("@tick", inst.TickSize);
+                    iCmd.Parameters.AddWithValue("@fno", inst.IsFnoEligible);
+                    await iCmd.ExecuteNonQueryAsync();
+                }
+
                 result.Success = true;
                 result.TablesCreated = created;
                 result.Message = "PostgreSQL database schema initialized successfully on MonsterASP.NET!";

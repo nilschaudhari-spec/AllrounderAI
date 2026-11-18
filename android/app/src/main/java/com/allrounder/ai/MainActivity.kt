@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
                             HomeScreen(
                                 onNavigateToSignals = { navController.navigate("signals") },
                                 onNavigateToScanner = { navController.navigate("scanner") },
+                                onNavigateToStrategies = { navController.navigate("strategies") },
                                 onNavigateToChart = { symbol ->
                                     currentSymbol = symbol
                                     navController.navigate("chart")
@@ -69,12 +70,33 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
+                        composable("strategies") {
+                            StrategiesScreen(
+                                onBack = { navController.popBackStack() },
+                                onSelectStrategy = { strat ->
+                                    navController.navigate("scanner")
+                                },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
+                                },
+                                onSelectSignal = { signal ->
+                                    currentSignal = signal
+                                    navController.navigate("signal_detail")
+                                }
+                            )
+                        }
+
                         composable("signals") {
                             MarketScannerScreen(
                                 onBack = { navController.popBackStack() },
                                 onSelectSignal = { signal ->
                                     currentSignal = signal
                                     navController.navigate("signal_detail")
+                                },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
                                 }
                             )
                         }
@@ -99,6 +121,10 @@ class MainActivity : ComponentActivity() {
                                 onSelectSignal = { signal ->
                                     currentSignal = signal
                                     navController.navigate("signal_detail")
+                                },
+                                onOpenChart = { symbol ->
+                                    currentSymbol = symbol
+                                    navController.navigate("chart")
                                 }
                             )
                         }

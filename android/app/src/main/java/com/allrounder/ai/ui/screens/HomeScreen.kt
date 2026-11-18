@@ -17,20 +17,75 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.allrounder.ai.data.network.ApiClient
+import com.allrounder.ai.domain.model.LiveQuoteDto
 import com.allrounder.ai.domain.model.Signal
 import com.allrounder.ai.ui.theme.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToSignals: () -> Unit,
     onNavigateToScanner: () -> Unit,
+    onNavigateToStrategies: () -> Unit,
     onNavigateToChart: (String) -> Unit,
     onNavigateToOptions: () -> Unit,
     onNavigateToBacktest: () -> Unit,
     onNavigateToPaperTrading: () -> Unit,
     onSelectSignal: (Signal) -> Unit
 ) {
+    var signals by remember { mutableStateOf<List<Signal>>(emptyList()) }
+    var niftyQuote by remember { mutableStateOf(LiveQuoteDto("NIFTY 50", "NSE", 24350.25, 108.5, 0.45)) }
+    var bankNiftyQuote by remember { mutableStateOf(LiveQuoteDto("BANK NIFTY", "NSE", 51240.00, 415.0, 0.82)) }
+    var sensexQuote by remember { mutableStateOf(LiveQuoteDto("SENSEX", "BSE", 79880.50, 305.2, 0.38)) }
+    var relianceQuote by remember { mutableStateOf(LiveQuoteDto("RELIANCE", "NSE", 1363.00, -4.0, -0.29)) }
+
+    // Fetch initial signals and quotes
+    LaunchedEffect(Unit) {
+        try {
+            val sigResp = withContext(Dispatchers.IO) {
+                ApiClient.apiService.getLiveSignals()
+            }
+            if (sigResp.isSuccessful && !sigResp.body().isNullOrEmpty()) {
+                signals = sigResp.body()!!
+            } else {
+                signals = FallbackSignals
+            }
+        } catch (_: Exception) {
+            signals = FallbackSignals
+        }
+    }
+
+    // Real-time market overview polling loop (every 5 seconds)
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                withContext(Dispatchers.IO) {
+                    val nq = ApiClient.apiService.getLiveQuote("NIFTY 50", "NSE")
+                    if (nq.isSuccessful && nq.body() != null) niftyQuote = nq.body()!!
+
+                    val bq = ApiClient.apiService.getLiveQuote("BANK NIFTY", "NSE")
+                    if (bq.isSuccessful && bq.body() != null) bankNiftyQuote = bq.body()!!
+
+                    val sq = ApiClient.apiService.getLiveQuote("SENSEX", "BSE")
+                    if (sq.isSuccessful && sq.body() != null) sensexQuote = sq.body()!!
+
+                    val rq = ApiClient.apiService.getLiveQuote("RELIANCE", "NSE")
+                    if (rq.isSuccessful && rq.body() != null) relianceQuote = rq.body()!!
+
+                    val sigResp = ApiClient.apiService.getLiveSignals()
+                    if (sigResp.isSuccessful && !sigResp.body().isNullOrEmpty()) {
+                        signals = sigResp.body()!!
+                    }
+                }
+            } catch (_: Exception) {}
+            delay(5000)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -70,27 +125,62 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Market Indices Strip
+            // Live Real-Time Market Overview Strip
             item {
-                Text(
-                    text = "LIVE MARKET OVERVIEW",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "LIVE MARKET OVERVIEW (NSE & BSE)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .background(BullishGreen, RoundedCornerShape(4.dp))
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Realtime Stream", fontSize = 10.sp, color = BullishGreen, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
-                        IndexCard("NIFTY 50", "24,350.25", "+0.45%", isUp = true) { onNavigateToChart("NIFTY 50") }
+                        IndexCard(
+                            name = "NIFTY 50 (NSE)",
+                            price = "₹${niftyQuote.lastPrice}",
+                            change = "${if (niftyQuote.changePercent >= 0) "+" else ""}${niftyQuote.changePercent}%",
+                            isUp = niftyQuote.changePercent >= 0
+                        ) { onNavigateToChart("NIFTY 50") }
                     }
                     item {
-                        IndexCard("BANK NIFTY", "51,240.00", "+0.82%", isUp = true) { onNavigateToChart("BANK NIFTY") }
+                        IndexCard(
+                            name = "BANK NIFTY (NSE)",
+                            price = "₹${bankNiftyQuote.lastPrice}",
+                            change = "${if (bankNiftyQuote.changePercent >= 0) "+" else ""}${bankNiftyQuote.changePercent}%",
+                            isUp = bankNiftyQuote.changePercent >= 0
+                        ) { onNavigateToChart("BANK NIFTY") }
                     }
                     item {
-                        IndexCard("SENSEX", "79,880.50", "+0.38%", isUp = true) { onNavigateToChart("SENSEX") }
+                        IndexCard(
+                            name = "SENSEX (BSE)",
+                            price = "₹${sensexQuote.lastPrice}",
+                            change = "${if (sensexQuote.changePercent >= 0) "+" else ""}${sensexQuote.changePercent}%",
+                            isUp = sensexQuote.changePercent >= 0
+                        ) { onNavigateToChart("SENSEX") }
                     }
                     item {
-                        IndexCard("MCX GOLD", "76,500.00", "-0.15%", isUp = false) { onNavigateToChart("MCX GOLD") }
+                        IndexCard(
+                            name = "RELIANCE (NSE)",
+                            price = "₹${relianceQuote.lastPrice}",
+                            change = "${if (relianceQuote.changePercent >= 0) "+" else ""}${relianceQuote.changePercent}%",
+                            isUp = relianceQuote.changePercent >= 0
+                        ) { onNavigateToChart("RELIANCE") }
                     }
                 }
             }
@@ -99,23 +189,28 @@ fun HomeScreen(
             item {
                 Text(
                     text = "STRATEGY TERMINAL MODULES",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ActionTile("Multi-Market Scanner", Icons.Default.FilterAlt, AccentBlue, Modifier.weight(1f), onNavigateToScanner)
-                    ActionTile("Live Buy/Sell Signals", Icons.Default.TrendingUp, BullishGreen, Modifier.weight(1f), onNavigateToSignals)
+                    ActionTile("TradingView Chart", Icons.Default.CandlestickChart, BullishGreen, Modifier.weight(1f)) { onNavigateToChart("NIFTY 50") }
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ActionTile("Options & Payoff (Slide 68)", Icons.Default.Shield, AccentOrange, Modifier.weight(1f), onNavigateToOptions)
+                    ActionTile("Strategies Hub (16)", Icons.Default.AutoAwesome, Color(0xFF38BDF8), Modifier.weight(1f), onNavigateToStrategies)
+                    ActionTile("Live Buy/Sell Signals", Icons.Default.TrendingUp, AccentOrange, Modifier.weight(1f), onNavigateToSignals)
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    ActionTile("Options & Payoff (Slide 68)", Icons.Default.Shield, Color(0xFFF59E0B), Modifier.weight(1f), onNavigateToOptions)
                     ActionTile("Historical Backtest", Icons.Default.History, Color(0xFF8B5CF6), Modifier.weight(1f), onNavigateToBacktest)
                 }
             }
 
-            // Recent Top PPT Strategy Signals
+            // Top Matched Strategy Signals
             item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -123,59 +218,18 @@ fun HomeScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "TOP MATCHED STRATEGIES",
-                        fontSize = 12.sp,
+                        text = "TOP MATCHED STRATEGIES (LIVE)",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextSecondary
                     )
                     TextButton(onClick = onNavigateToSignals) {
-                        Text("View All", color = AccentBlue, fontSize = 12.sp)
+                        Text("View All Signals", color = AccentBlue, fontSize = 12.sp)
                     }
                 }
             }
 
-            val mockSignals = listOf(
-                Signal(
-                    signalId = "s1",
-                    tradingSymbol = "NIFTY 50",
-                    exchange = "NSE",
-                    strategyId = "DAILY_INTRADAY_5M",
-                    strategyName = "Daily Intraday Technique (5-Minute)",
-                    pptSlideReference = "Slides 59-62",
-                    signalType = "BUY",
-                    status = "CONFIRMED",
-                    timeframe = "5m",
-                    entryPrice = 24350.0,
-                    targetPrice = 24390.0,
-                    stopLossPrice = 24310.0,
-                    riskRewardRatio = 1.0,
-                    qualityScore = 96.0,
-                    marketTrend = "Bullish Reversal Confluence",
-                    confirmationMode = "CANDLE_CLOSE",
-                    analysisSummary = "Supertrend(20,2) Bullish, Price > VWAP, MACD Bullish crossover on 5m chart. Strict 1:1 Target & Stop Loss configured."
-                ),
-                Signal(
-                    signalId = "s2",
-                    tradingSymbol = "BANK NIFTY",
-                    exchange = "NSE",
-                    strategyId = "LOW_BREAK_CLOSE_UPSIDE",
-                    strategyName = "Low Break, Close Upside",
-                    pptSlideReference = "Slides 13-14",
-                    signalType = "BUY",
-                    status = "CONFIRMED",
-                    timeframe = "15m",
-                    entryPrice = 51240.0,
-                    targetPrice = 51320.0,
-                    stopLossPrice = 51160.0,
-                    riskRewardRatio = 1.0,
-                    qualityScore = 92.0,
-                    marketTrend = "Reversal Trend",
-                    confirmationMode = "CANDLE_CLOSE",
-                    analysisSummary = "Red candle low broken, current green candle closed upside with PPT 7-10 pt rule satisfied."
-                )
-            )
-
-            items(mockSignals) { signal ->
+            items(signals) { signal ->
                 SignalCard(signal = signal, onClick = { onSelectSignal(signal) })
             }
         }
@@ -186,22 +240,24 @@ fun HomeScreen(
 fun IndexCard(name: String, price: String, change: String, isUp: Boolean, onClick: () -> Unit) {
     Card(
         modifier = Modifier
-            .width(150.dp)
+            .width(155.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = DarkSurface)
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
-            Text(text = name, fontSize = 12.sp, color = TextSecondary)
+            Text(text = name, fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.SemiBold)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = price, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Text(text = price, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = change,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isUp) BullishGreen else BearishRed
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (isUp) "▲ $change" else "▼ $change",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isUp) BullishGreen else BearishRed
+                )
+            }
         }
     }
 }
@@ -220,19 +276,19 @@ fun ActionTile(
         colors = CardDefaults.cardColors(containerColor = DarkSurface)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(34.dp)
                     .background(color.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             }
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(text = title, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(text = title, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextPrimary, lineHeight = 14.sp)
         }
     }
 }
@@ -256,19 +312,6 @@ fun SignalCard(signal: Signal, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .background(accentColor.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = signal.signalType.uppercase(),
-                            color = accentColor,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = signal.tradingSymbol,
                         fontWeight = FontWeight.Bold,
@@ -276,55 +319,78 @@ fun SignalCard(signal: Signal, onClick: () -> Unit) {
                         color = TextPrimary
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "• ${signal.timeframe}",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    Box(
+                        modifier = Modifier
+                            .background(AccentBlue.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = signal.exchange,
+                            color = AccentBlue,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .background(AccentBlue.copy(alpha = 0.15f), RoundedCornerShape(6.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = "Score: ${signal.qualityScore.toInt()}%",
-                        color = AccentBlue,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .background(AccentOrange.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = signal.pptSlideReference,
+                            color = AccentOrange,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .background(accentColor.copy(alpha = 0.15f), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = signal.signalType,
+                            color = accentColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "${signal.strategyName} (${signal.pptSlideReference})",
-                color = AccentOrange,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
             Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = signal.strategyName,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextSecondary
+            )
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Pricing Row
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DarkSurfaceVariant.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .padding(8.dp),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text("Entry", color = TextSecondary, fontSize = 11.sp)
-                    Text("₹${signal.entryPrice}", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
+                    Text("ENTRY", fontSize = 9.sp, color = TextSecondary, fontWeight = FontWeight.Bold)
+                    Text("₹${signal.entryPrice}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 }
-                Column {
-                    Text("Target (1:1)", color = TextSecondary, fontSize = 11.sp)
-                    Text("₹${signal.targetPrice}", fontWeight = FontWeight.Bold, color = BullishGreen, fontSize = 13.sp)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("TARGET (1:1)", fontSize = 9.sp, color = BullishGreen, fontWeight = FontWeight.Bold)
+                    Text("₹${signal.targetPrice}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BullishGreen)
                 }
-                Column {
-                    Text("Stop Loss", color = TextSecondary, fontSize = 11.sp)
-                    Text("₹${signal.stopLossPrice}", fontWeight = FontWeight.Bold, color = BearishRed, fontSize = 13.sp)
-                }
-                Column {
-                    Text("R:R Ratio", color = TextSecondary, fontSize = 11.sp)
-                    Text("1:1", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("STOP LOSS", fontSize = 9.sp, color = BearishRed, fontWeight = FontWeight.Bold)
+                    Text("₹${signal.stopLossPrice}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BearishRed)
                 }
             }
         }

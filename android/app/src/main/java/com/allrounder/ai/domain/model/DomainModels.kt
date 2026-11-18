@@ -93,3 +93,31 @@ data class PaperPortfolio(
     val realizedPnl: Double,
     val unrealizedPnl: Double
 )
+
+data class StrategyInfo(
+    val strategyId: String,
+    val name: String,
+    val category: String,
+    val direction: String,
+    val pptSlideReference: String,
+    val description: String,
+    val defaultTimeframe: String,
+    val riskRewardRatio: Double = 1.0,
+    val winRateBenchmark: Double = 90.0,
+    val rules: List<String> = emptyList(),
+    val activeSignalsCount: Int = 0
+)
+
+data class LiveQuoteDto(
+    val symbol: String,
+    val exchange: String = "NSE",
+    val lastPrice: Double,
+    val change: Double = 0.0,
+    val changePercent: Double = 0.0,
+    val dayHigh: Double = 0.0,
+    val dayLow: Double = 0.0,
+    val openPrice: Double = 0.0,
+    val previousClose: Double = 0.0,
+    val volume: Long = 0,
+    val lastUpdated: String = ""
+)

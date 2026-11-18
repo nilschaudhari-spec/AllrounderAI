@@ -56,8 +56,14 @@ app.MapGet("/", async (IDatabaseService db) =>
         },
         Endpoints = new[]
         {
+            "/api/v1/strategies",
+            "/api/v1/strategies/DAILY_INTRADAY_5M/signals",
             "/api/v1/market/instruments",
+            "/api/v1/market/quote?symbol=RELIANCE&exchange=NSE",
+            "/api/v1/market/quote?symbol=TCS&exchange=BSE",
+            "/api/v1/market/quotes",
             "/api/v1/signals/live",
+            "/api/v1/scanner/run",
             "/api/v1/options/chain?underlying=BANKNIFTY",
             "/api/v1/options/protective-put",
             "/api/v1/options/protective-call",

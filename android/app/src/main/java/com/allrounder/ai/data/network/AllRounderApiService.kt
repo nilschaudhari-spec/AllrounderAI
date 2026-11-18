@@ -12,7 +12,37 @@ import java.util.concurrent.TimeUnit
 interface AllRounderApiService {
 
     @GET("api/v1/market/instruments")
-    suspend fun getInstruments(@Query("segment") segment: String? = null): Response<List<Instrument>>
+    suspend fun getInstruments(
+        @Query("exchange") exchange: String? = null,
+        @Query("segment") segment: String? = null,
+        @Query("search") search: String? = null,
+        @Query("fnoOnly") fnoOnly: Boolean? = null,
+        @Query("limit") limit: Int = 100
+    ): Response<List<Instrument>>
+
+    @GET("api/v1/market/quote")
+    suspend fun getLiveQuote(
+        @Query("symbol") symbol: String,
+        @Query("exchange") exchange: String = "NSE"
+    ): Response<LiveQuoteDto>
+
+    @GET("api/v1/market/quotes")
+    suspend fun getLiveQuotes(
+        @Query("exchange") exchange: String? = null,
+        @Query("segment") segment: String? = null,
+        @Query("limit") limit: Int = 30
+    ): Response<List<LiveQuoteDto>>
+
+    @GET("api/v1/strategies")
+    suspend fun getStrategies(
+        @Query("category") category: String? = null
+    ): Response<List<StrategyInfo>>
+
+    @GET("api/v1/strategies/{id}/signals")
+    suspend fun getStrategySignals(
+        @Path("id") id: String,
+        @Query("exchange") exchange: String? = null
+    ): Response<List<Signal>>
 
     @GET("api/v1/market/candles")
     suspend fun getCandles(
@@ -22,7 +52,10 @@ interface AllRounderApiService {
     ): Response<CandlesResponse>
 
     @GET("api/v1/signals/live")
-    suspend fun getLiveSignals(@Query("status") status: String? = null): Response<List<Signal>>
+    suspend fun getLiveSignals(
+        @Query("status") status: String? = null,
+        @Query("exchange") exchange: String? = null
+    ): Response<List<Signal>>
 
     @GET("api/v1/options/protective-put")
     suspend fun getProtectivePut(
