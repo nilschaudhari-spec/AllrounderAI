@@ -21,6 +21,10 @@ local.properties
 *.apk
 *.aab
 
+## Secrets and publish configs
+*.publishSettings
+deploy_framework.bat
+
 ## Logs
 logs/
 *.log

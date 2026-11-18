@@ -77,7 +77,7 @@ data class PaperAccountDto(
 )
 
 object ApiClient {
-    private const val BASE_URL = "http://10.0.2.2:5000/" // Android emulator localhost mapping
+    private const val BASE_URL = "http://allrounderai.runasp.net/"
 
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
