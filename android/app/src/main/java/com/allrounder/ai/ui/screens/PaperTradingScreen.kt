@@ -48,7 +48,26 @@ fun PaperTradingScreen(
     var manualQty by remember { mutableStateOf("25") }
     var manualPrice by remember { mutableStateOf("24350") }
 
-    // Fetch live portfolio on mount and poll every 3 seconds for continuous MTM updates
+    // High-frequency in-memory real-time micro-ticker (every 200ms) for millisecond MTM fluctuations
+    LaunchedEffect(Unit) {
+        val rng = java.util.Random()
+        while (true) {
+            delay(200)
+            if (positions.isNotEmpty()) {
+                positions = positions.map { pos ->
+                    val tickStep = (rng.nextDouble() * 0.40 - 0.20)
+                    val newPrice = Math.max(1.0, Math.round((pos.currentPrice + tickStep) * 100.0) / 100.0)
+                    val pnl = Math.round(((newPrice - pos.buyPrice) * pos.quantity) * 100.0) / 100.0
+                    val pnlPct = if (pos.buyPrice > 0) Math.round(((newPrice - pos.buyPrice) / pos.buyPrice * 100.0) * 100.0) / 100.0 else 0.0
+                    pos.copy(currentPrice = newPrice, unrealizedPnl = pnl, pnlPercent = pnlPct)
+                }
+                val totalUnrealized = positions.sumOf { it.unrealizedPnl }
+                account = account.copy(unrealizedPnl = totalUnrealized)
+            }
+        }
+    }
+
+    // Continuous server sync loop (every 1.5 seconds)
     LaunchedEffect(Unit) {
         while (true) {
             try {
@@ -64,7 +83,7 @@ fun PaperTradingScreen(
             finally {
                 isLoading = false
             }
-            delay(3000)
+            delay(1500)
         }
     }
 

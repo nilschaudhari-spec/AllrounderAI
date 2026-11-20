@@ -70,15 +70,11 @@ namespace AllRounderAi.Core.Services
                 _ = TrySyncYahooPriceAsync(state, cleanSymbol, exchange);
             }
 
-            // Continuous Real-Time Tick Generation (Simulates sub-second live market order-book fluctuations)
+            // Ultra-fast Real-Time Tick Generation on every call (millisecond responsiveness)
             lock (state)
             {
-                var elapsedMs = (DateTime.UtcNow - state.LastTickTime).TotalMilliseconds;
-                if (elapsedMs >= 400) // update tick if at least 400ms has elapsed
-                {
-                    ApplyMicroTick(state);
-                    state.LastTickTime = DateTime.UtcNow;
-                }
+                ApplyMicroTick(state);
+                state.LastTickTime = DateTime.UtcNow;
             }
 
             var chg = state.CurrentPrice - state.PreviousClose;

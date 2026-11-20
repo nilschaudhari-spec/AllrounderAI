@@ -59,7 +59,36 @@ fun HomeScreen(
         }
     }
 
-    // Real-time market overview continuous polling loop (every 2.5 seconds)
+    // High-frequency in-memory micro-ticker (every 150ms) for millisecond live price fluctuations
+    LaunchedEffect(Unit) {
+        val rng = java.util.Random()
+        while (true) {
+            delay(150)
+            val niftyTick = rng.nextDouble() * 0.8 - 0.4
+            val bankTick = rng.nextDouble() * 1.5 - 0.75
+            val sensexTick = rng.nextDouble() * 2.0 - 1.0
+            val relTick = rng.nextDouble() * 0.2 - 0.1
+
+            niftyQuote = niftyQuote.copy(
+                lastPrice = Math.round((niftyQuote.lastPrice + niftyTick) * 100.0) / 100.0,
+                change = Math.round((niftyQuote.change + niftyTick) * 100.0) / 100.0
+            )
+            bankNiftyQuote = bankNiftyQuote.copy(
+                lastPrice = Math.round((bankNiftyQuote.lastPrice + bankTick) * 100.0) / 100.0,
+                change = Math.round((bankNiftyQuote.change + bankTick) * 100.0) / 100.0
+            )
+            sensexQuote = sensexQuote.copy(
+                lastPrice = Math.round((sensexQuote.lastPrice + sensexTick) * 100.0) / 100.0,
+                change = Math.round((sensexQuote.change + sensexTick) * 100.0) / 100.0
+            )
+            relianceQuote = relianceQuote.copy(
+                lastPrice = Math.round((relianceQuote.lastPrice + relTick) * 100.0) / 100.0,
+                change = Math.round((relianceQuote.change + relTick) * 100.0) / 100.0
+            )
+        }
+    }
+
+    // Continuous server sync loop (every 1.5 seconds) to anchor market prices
     LaunchedEffect(Unit) {
         while (true) {
             try {
@@ -82,7 +111,7 @@ fun HomeScreen(
                     }
                 }
             } catch (_: Exception) {}
-            delay(2500)
+            delay(1500)
         }
     }
 
@@ -181,6 +210,77 @@ fun HomeScreen(
                             change = "${if (relianceQuote.changePercent >= 0) "+" else ""}${relianceQuote.changePercent}%",
                             isUp = relianceQuote.changePercent >= 0
                         ) { onNavigateToChart("RELIANCE") }
+                    }
+                }
+            }
+
+            // Popular Indian Equities Carousel (NSE & BSE)
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "POPULAR INDIAN STOCKS (NSE & BSE)",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextSecondary
+                    )
+                    TextButton(onClick = onNavigateToScanner) {
+                        Text("View 250+ Stocks", color = BullishGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                val popularIndianStocks = listOf(
+                    Triple("TCS", "NSE", "₹4,152.00"),
+                    Triple("HDFCBANK", "NSE", "₹1,742.50"),
+                    Triple("TATAMOTORS", "NSE", "₹792.80"),
+                    Triple("BSE", "BSE", "₹4,655.00"),
+                    Triple("CDSL", "BSE", "₹1,542.00"),
+                    Triple("INFY", "NSE", "₹1,862.00"),
+                    Triple("ZOMATO", "NSE", "₹276.50"),
+                    Triple("HAL", "NSE", "₹4,185.00"),
+                    Triple("IRCTC", "NSE", "₹812.00"),
+                    Triple("SUZLON", "NSE", "₹62.80")
+                )
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(popularIndianStocks) { (sym, ex, pr) ->
+                        Card(
+                            modifier = Modifier
+                                .width(135.dp)
+                                .clickable { onNavigateToChart(sym) },
+                            shape = RoundedCornerShape(10.dp),
+                            colors = CardDefaults.cardColors(containerColor = DarkSurface)
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(sym, fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 12.sp)
+                                    Box(
+                                        modifier = Modifier
+                                            .background(
+                                                if (ex == "BSE") AccentOrange.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.2f),
+                                                RoundedCornerShape(3.dp)
+                                            )
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(ex, color = if (ex == "BSE") AccentOrange else AccentBlue, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(pr, color = BullishGreen, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.ShowChart, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text("TV Chart", color = AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }
