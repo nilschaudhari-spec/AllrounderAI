@@ -10,6 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import com.allrounder.ai.data.network.ApiClient
+import com.allrounder.ai.domain.model.PaperOrderRequest
 import com.allrounder.ai.domain.model.Signal
 import com.allrounder.ai.ui.screens.*
 import com.allrounder.ai.ui.theme.AllRounderAiTheme
@@ -185,7 +190,22 @@ class MainActivity : ComponentActivity() {
                                     currentSymbol = symbol
                                     navController.navigate("chart")
                                 },
-                                onExecutePaperTrade = {
+                                onExecutePaperTrade = { sig ->
+                                    lifecycleScope.launch(Dispatchers.IO) {
+                                        try {
+                                            val req = PaperOrderRequest(
+                                                tradingSymbol = sig.tradingSymbol,
+                                                exchange = sig.exchange,
+                                                signalType = sig.signalType,
+                                                quantity = 15,
+                                                entryPrice = sig.entryPrice,
+                                                targetPrice = sig.targetPrice,
+                                                stopLossPrice = sig.stopLossPrice,
+                                                strategyName = sig.strategyName
+                                            )
+                                            ApiClient.apiService.placePaperOrder(req, 15)
+                                        } catch (_: Exception) {}
+                                    }
                                     navController.navigate("papertrading")
                                 }
                             )

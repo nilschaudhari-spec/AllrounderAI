@@ -85,6 +85,60 @@ data class BacktestSummary(
     val sharpeRatio: Double
 )
 
+data class PaperAccountDto(
+    val accountId: String = "FP_USER_88291",
+    val providerName: String = "FrontPage",
+    val balance: Double = 1000000.0,
+    val availableMargin: Double = 1000000.0,
+    val realizedPnl: Double = 0.0,
+    val unrealizedPnl: Double = 0.0
+)
+
+data class PaperPositionDto(
+    val positionId: String = "",
+    val tradingSymbol: String = "",
+    val exchange: String = "NSE",
+    val side: String = "Buy",
+    val quantity: Int = 0,
+    val buyPrice: Double = 0.0,
+    val currentPrice: Double = 0.0,
+    val targetPrice: Double = 0.0,
+    val stopLossPrice: Double = 0.0,
+    val unrealizedPnl: Double = 0.0,
+    val pnlPercent: Double = 0.0
+)
+
+data class PaperOrderDto(
+    val orderId: String = "",
+    val signalId: String = "",
+    val tradingSymbol: String = "",
+    val exchange: String = "NSE",
+    val side: String = "Buy",
+    val quantity: Int = 0,
+    val price: Double = 0.0,
+    val targetPrice: Double = 0.0,
+    val stopLossPrice: Double = 0.0,
+    val status: String = "FILLED",
+    val placedAt: String = ""
+)
+
+data class PaperPortfolioResponse(
+    val account: PaperAccountDto = PaperAccountDto(),
+    val positions: List<PaperPositionDto> = emptyList(),
+    val orders: List<PaperOrderDto> = emptyList()
+)
+
+data class PaperOrderRequest(
+    val tradingSymbol: String,
+    val exchange: String = "NSE",
+    val signalType: String = "BUY",
+    val quantity: Int = 15,
+    val entryPrice: Double = 0.0,
+    val targetPrice: Double = 0.0,
+    val stopLossPrice: Double = 0.0,
+    val strategyName: String = "FrontPage Paper Trade"
+)
+
 data class PaperPortfolio(
     val accountId: String,
     val provider: String,

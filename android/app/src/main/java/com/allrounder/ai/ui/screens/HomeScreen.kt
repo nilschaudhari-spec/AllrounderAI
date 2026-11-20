@@ -59,7 +59,7 @@ fun HomeScreen(
         }
     }
 
-    // Real-time market overview polling loop (every 5 seconds)
+    // Real-time market overview continuous polling loop (every 2.5 seconds)
     LaunchedEffect(Unit) {
         while (true) {
             try {
@@ -82,7 +82,7 @@ fun HomeScreen(
                     }
                 }
             } catch (_: Exception) {}
-            delay(5000)
+            delay(2500)
         }
     }
 

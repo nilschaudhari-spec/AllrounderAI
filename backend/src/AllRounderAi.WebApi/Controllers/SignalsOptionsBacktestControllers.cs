@@ -330,6 +330,18 @@ namespace AllRounderAi.WebApi.Controllers
         }
     }
 
+    public class PaperOrderCreateRequest
+    {
+        public string TradingSymbol { get; set; } = string.Empty;
+        public string Exchange { get; set; } = "NSE";
+        public string SignalType { get; set; } = "BUY";
+        public int Quantity { get; set; } = 15;
+        public decimal EntryPrice { get; set; }
+        public decimal TargetPrice { get; set; }
+        public decimal StopLossPrice { get; set; }
+        public string StrategyName { get; set; } = "FrontPage Paper Trade";
+    }
+
     [ApiController]
     [Route("api/v1/[controller]")]
     public class PaperTradingController : ControllerBase
@@ -352,10 +364,38 @@ namespace AllRounderAi.WebApi.Controllers
         }
 
         [HttpPost("order")]
-        public async Task<ActionResult<PaperOrder>> PlaceOrder([FromBody] TradingSignal signal, [FromQuery] int quantity = 15)
+        public async Task<ActionResult<PaperOrder>> PlaceOrder([FromBody] PaperOrderCreateRequest request, [FromQuery] int? quantity = null)
         {
-            var order = await _broker.PlaceOrderAsync(signal, quantity);
+            int qty = quantity ?? (request.Quantity > 0 ? request.Quantity : 15);
+            var side = request.SignalType.Equals("SELL", StringComparison.OrdinalIgnoreCase) ? SignalDirection.Sell : SignalDirection.Buy;
+            var order = await _broker.PlaceCustomOrderAsync(
+                request.TradingSymbol,
+                request.Exchange,
+                side,
+                qty,
+                request.EntryPrice,
+                request.TargetPrice,
+                request.StopLossPrice
+            );
             return Ok(order);
+        }
+
+        [HttpPost("close/{symbol}")]
+        public async Task<ActionResult<object>> ClosePosition([FromRoute] string symbol)
+        {
+            var success = await _broker.ClosePositionAsync(symbol);
+            if (!success)
+            {
+                return NotFound(new { message = $"No active position found for symbol {symbol} to square off." });
+            }
+            return Ok(new { message = $"Position {symbol} squared off successfully at current market price.", success = true });
+        }
+
+        [HttpPost("reset")]
+        public async Task<ActionResult<object>> ResetPortfolio()
+        {
+            await _broker.ResetAccountAsync();
+            return Ok(new { message = "Paper trading virtual portfolio reset successfully.", success = true });
         }
     }
 }

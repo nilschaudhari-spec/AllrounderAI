@@ -95,7 +95,7 @@ namespace AllRounderAi.Core.Models
 
     public class PaperAccount
     {
-        public string AccountId { get; set; } = "FP_DEMO_01";
+        public string AccountId { get; set; } = "FP_USER_88291";
         public string ProviderName { get; set; } = "FrontPage";
         public decimal Balance { get; set; } = 1000000m;
         public decimal AvailableMargin { get; set; } = 1000000m;
@@ -108,6 +108,7 @@ namespace AllRounderAi.Core.Models
         public string OrderId { get; set; } = Guid.NewGuid().ToString();
         public string SignalId { get; set; } = string.Empty;
         public string TradingSymbol { get; set; } = string.Empty;
+        public string Exchange { get; set; } = "NSE";
         public SignalDirection Side { get; set; }
         public int Quantity { get; set; }
         public decimal Price { get; set; }
@@ -121,9 +122,14 @@ namespace AllRounderAi.Core.Models
     {
         public string PositionId { get; set; } = Guid.NewGuid().ToString();
         public string TradingSymbol { get; set; } = string.Empty;
+        public string Exchange { get; set; } = "NSE";
+        public SignalDirection Side { get; set; } = SignalDirection.Buy;
         public int Quantity { get; set; }
         public decimal BuyPrice { get; set; }
         public decimal CurrentPrice { get; set; }
-        public decimal UnrealizedPnl => Quantity * (CurrentPrice - BuyPrice);
+        public decimal TargetPrice { get; set; }
+        public decimal StopLossPrice { get; set; }
+        public decimal UnrealizedPnl => Side == SignalDirection.Buy ? Quantity * (CurrentPrice - BuyPrice) : Quantity * (BuyPrice - CurrentPrice);
+        public decimal PnlPercent => BuyPrice > 0 ? Math.Round(((Side == SignalDirection.Buy ? CurrentPrice - BuyPrice : BuyPrice - CurrentPrice) / BuyPrice) * 100m, 2) : 0m;
     }
 }

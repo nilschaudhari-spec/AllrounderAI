@@ -3,9 +3,12 @@ package com.allrounder.ai.ui.screens
 import android.annotation.SuppressLint
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -32,6 +35,7 @@ import com.allrounder.ai.ui.theme.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.net.URLEncoder
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -40,9 +44,9 @@ fun MarketScannerScreen(
     onSelectSignal: (Signal) -> Unit,
     onOpenChart: (String) -> Unit = {}
 ) {
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Signals, 1 = All Stocks
     var selectedExchange by remember { mutableStateOf("ALL") }
     var selectedScope by remember { mutableStateOf("ALL") }
-    var selectedTimeframe by remember { mutableStateOf("5m") }
     var searchQuery by remember { mutableStateOf("") }
     var isScanning by remember { mutableStateOf(false) }
 
@@ -52,10 +56,9 @@ fun MarketScannerScreen(
 
     val exchanges = listOf("ALL", "NSE", "BSE")
     val scopes = listOf("ALL", "FNO", "CASH", "INDEX", "COMMODITY")
-    val timeframes = listOf("1m", "3m", "5m", "15m", "30m", "1h", "D")
 
-    // Fetch signals and instruments from live backend with real-time updates
-    LaunchedEffect(selectedExchange, selectedScope) {
+    // Fetch signals and instruments from live backend
+    LaunchedEffect(selectedExchange, selectedScope, searchQuery) {
         isLoading = true
         try {
             val sigResp = withContext(Dispatchers.IO) {
@@ -71,29 +74,39 @@ fun MarketScannerScreen(
                 ApiClient.apiService.getInstruments(
                     exchange = if (selectedExchange == "ALL") null else selectedExchange,
                     segment = if (selectedScope == "ALL") null else selectedScope,
-                    limit = 60
+                    search = if (searchQuery.isBlank()) null else searchQuery,
+                    limit = 200
                 )
             }
             if (instResp.isSuccessful && !instResp.body().isNullOrEmpty()) {
                 instruments = instResp.body()!!
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             signals = FallbackSignals
         } finally {
             isLoading = false
         }
     }
 
-    // Real-time price background refresh loop every 6 seconds
+    // Continuous real-time polling loop (every 3 seconds)
     LaunchedEffect(Unit) {
         while (true) {
-            delay(6000)
+            delay(3000)
             try {
-                val refreshResp = withContext(Dispatchers.IO) {
-                    ApiClient.apiService.getLiveSignals(exchange = if (selectedExchange == "ALL") null else selectedExchange)
-                }
-                if (refreshResp.isSuccessful && !refreshResp.body().isNullOrEmpty()) {
-                    signals = refreshResp.body()!!
+                withContext(Dispatchers.IO) {
+                    val sigResp = ApiClient.apiService.getLiveSignals(exchange = if (selectedExchange == "ALL") null else selectedExchange)
+                    if (sigResp.isSuccessful && !sigResp.body().isNullOrEmpty()) {
+                        signals = sigResp.body()!!
+                    }
+                    val instResp = ApiClient.apiService.getInstruments(
+                        exchange = if (selectedExchange == "ALL") null else selectedExchange,
+                        segment = if (selectedScope == "ALL") null else selectedScope,
+                        search = if (searchQuery.isBlank()) null else searchQuery,
+                        limit = 200
+                    )
+                    if (instResp.isSuccessful && !instResp.body().isNullOrEmpty()) {
+                        instruments = instResp.body()!!
+                    }
                 }
             } catch (_: Exception) {}
         }
@@ -109,11 +122,19 @@ fun MarketScannerScreen(
     }
 
     val filteredInstruments = instruments.filter { inst ->
-        searchQuery.isNotBlank() && (
+        val matchesExchange = selectedExchange == "ALL" || inst.exchange.equals(selectedExchange, ignoreCase = true)
+        val matchesScope = when (selectedScope) {
+            "FNO" -> inst.isFnoEligible
+            "INDEX" -> inst.segment.contains("Index", ignoreCase = true)
+            "COMMODITY" -> inst.segment.contains("Commodity", ignoreCase = true)
+            "CASH" -> inst.segment.contains("Equity", ignoreCase = true)
+            else -> true
+        }
+        val matchesSearch = searchQuery.isBlank() ||
                 inst.symbol.contains(searchQuery, ignoreCase = true) ||
                 inst.tradingSymbol.contains(searchQuery, ignoreCase = true) ||
                 inst.name.contains(searchQuery, ignoreCase = true)
-        )
+        matchesExchange && matchesScope && matchesSearch
     }
 
     Scaffold(
@@ -141,11 +162,11 @@ fun MarketScannerScreen(
                 .padding(padding)
                 .padding(horizontal = 16.dp)
         ) {
-            // Search Bar for All Stocks
+            // Search Bar with Real-time Universal Resolver
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search 100+ NSE & BSE stocks (Reliance, TCS, Tata Motors...)", fontSize = 12.sp, color = TextSecondary) },
+                placeholder = { Text("Search any NSE & BSE stock (Reliance, TCS, Tata Motors, BSE...)", fontSize = 12.sp, color = TextSecondary) },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -169,10 +190,45 @@ fun MarketScannerScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Exchange Selector Chips (NSE / BSE / ALL)
+            // Primary Tabs: Strategy Signals vs All NSE/BSE Stocks
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = DarkSurface,
+                contentColor = AccentBlue,
+                indicator = {}
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        Text(
+                            "STRATEGY SIGNALS (${filteredSignals.size})",
+                            fontSize = 11.sp,
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedTab == 0) AccentBlue else TextSecondary
+                        )
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        Text(
+                            "ALL NSE & BSE STOCKS (${filteredInstruments.size})",
+                            fontSize = 11.sp,
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedTab == 1) BullishGreen else TextSecondary
+                        )
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Exchange & Segment Filter Chips
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("EXCHANGE:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 exchanges.forEach { ex ->
                     FilterChip(
                         selected = selectedExchange == ex,
@@ -182,14 +238,13 @@ fun MarketScannerScreen(
                             selectedContainerColor = AccentBlue,
                             selectedLabelColor = Color.White
                         ),
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 4.dp)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
-            // Market Segment Filter Chips
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(scopes) { scope ->
                     FilterChip(
@@ -204,76 +259,142 @@ fun MarketScannerScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Section Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "MATCHED LIVE SIGNALS (${filteredSignals.size})",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextSecondary
-                )
-                Text(
-                    text = "Strict 1:1 Target",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = BullishGreen
-                )
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
 
             if (isLoading) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator(color = AccentBlue)
                 }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // Show search results if user searched for specific stock
-                    if (searchQuery.isNotBlank() && filteredInstruments.isNotEmpty()) {
-                        item {
-                            Text("MATCHED INSTRUMENTS FROM UNIVERSE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = AccentBlue)
-                        }
-                        items(filteredInstruments.take(5)) { inst ->
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onOpenChart(inst.symbol) },
-                                shape = RoundedCornerShape(8.dp),
-                                colors = CardDefaults.cardColors(containerColor = DarkSurfaceVariant)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text("${inst.symbol} (${inst.exchange})", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
-                                        Text(inst.name, color = TextSecondary, fontSize = 11.sp)
-                                    }
-                                    Column(horizontalAlignment = Alignment.End) {
-                                        Text("₹${inst.lastPrice}", fontWeight = FontWeight.Bold, color = TextPrimary, fontSize = 13.sp)
-                                        Text("${if (inst.changePercent >= 0) "+" else ""}${inst.changePercent}%", color = if (inst.changePercent >= 0) BullishGreen else BearishRed, fontSize = 11.sp)
-                                    }
-                                }
-                            }
-                        }
-                        item {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("CONFIRMED STRATEGY SIGNALS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = TextSecondary)
+            } else if (selectedTab == 0) {
+                // Signals Tab
+                if (filteredSignals.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No strategy signals match current filter", color = TextSecondary, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredSignals) { signal ->
+                            SignalCard(
+                                signal = signal,
+                                onClick = { onSelectSignal(signal) },
+                                onOpenChart = { onOpenChart(signal.tradingSymbol) }
+                            )
                         }
                     }
+                }
+            } else {
+                // All Stocks Universe Tab
+                if (filteredInstruments.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("No instruments found matching search criteria", color = TextSecondary, fontSize = 13.sp)
+                    }
+                } else {
+                    LazyColumn(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredInstruments) { inst ->
+                            InstrumentRowCard(
+                                instrument = inst,
+                                onOpenChart = { onOpenChart(inst.symbol) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
-                    items(filteredSignals) { signal ->
-                        SignalCard(signal = signal, onClick = { onSelectSignal(signal) })
+@Composable
+fun InstrumentRowCard(
+    instrument: Instrument,
+    onOpenChart: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenChart() },
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = instrument.symbol,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (instrument.exchange.equals("BSE", ignoreCase = true)) AccentOrange.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.2f),
+                                RoundedCornerShape(4.dp)
+                            )
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = instrument.exchange,
+                            color = if (instrument.exchange.equals("BSE", ignoreCase = true)) AccentOrange else AccentBlue,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (instrument.isFnoEligible) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(BullishGreen.copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text("F&O", color = BullishGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "${instrument.name} • Lot: ${instrument.lotSize}",
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "₹${instrument.lastPrice}",
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "${if (instrument.changePercent >= 0) "▲ +" else "▼ "}${instrument.changePercent}%",
+                    color = if (instrument.changePercent >= 0) BullishGreen else BearishRed,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row {
+                    FilledTonalButton(
+                        onClick = onOpenChart,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        modifier = Modifier.height(26.dp),
+                        colors = ButtonDefaults.filledTonalButtonColors(containerColor = DarkSurfaceVariant)
+                    ) {
+                        Icon(Icons.Default.ShowChart, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Chart", fontSize = 10.sp, color = AccentBlue)
                     }
                 }
             }
@@ -289,14 +410,16 @@ fun InteractiveChartScreen(
     onBack: () -> Unit
 ) {
     var currentSymbol by remember { mutableStateOf(symbol) }
-    var currentExchange by remember { mutableStateOf(if (symbol.contains("SENSEX") || symbol.contains("BSE")) "BSE" else "NSE") }
+    var currentExchange by remember { mutableStateOf(if (symbol.contains("SENSEX", ignoreCase = true) || symbol.contains("BSE", ignoreCase = true)) "BSE" else "NSE") }
     var selectedInterval by remember { mutableStateOf("5") } // 1, 5, 15, 60, D
     var liveQuote by remember { mutableStateOf<LiveQuoteDto?>(null) }
+    var searchDialogOpen by remember { mutableStateOf(false) }
+    var searchInput by remember { mutableStateOf("") }
 
-    val quickSymbols = listOf("NIFTY 50", "BANK NIFTY", "SENSEX", "RELIANCE", "TCS", "HDFCBANK", "INFY", "TATAMOTORS", "ZOMATO", "BSE")
+    val quickSymbols = listOf("NIFTY 50", "BANK NIFTY", "SENSEX", "RELIANCE", "TCS", "HDFCBANK", "INFY", "TATAMOTORS", "BSE", "CDSL", "ZOMATO", "HAL")
     val intervals = listOf("1" to "1m", "5" to "5m", "15" to "15m", "60" to "1h", "D" to "1D")
 
-    // Real-time price fetcher for the active symbol
+    // Continuous real-time price fetcher for the active symbol
     LaunchedEffect(currentSymbol, currentExchange) {
         while (true) {
             try {
@@ -307,64 +430,92 @@ fun InteractiveChartScreen(
                     liveQuote = resp.body()
                 }
             } catch (_: Exception) {}
-            delay(4000)
+            delay(2500)
         }
     }
 
-    // Determine TradingView formatted ticker
+    // Determine strict Indian TradingView formatted ticker
     val tradingViewSymbol = remember(currentSymbol, currentExchange) {
-        val s = currentSymbol.trim().uppercase()
-        when {
-            s == "NIFTY 50" || s == "NIFTY" -> "NSE:NIFTY"
-            s.contains("BANK") && s.contains("NIFTY") -> "NSE:BANKNIFTY"
-            s == "SENSEX" -> "BSE:SENSEX"
-            s == "NIFTY IT" || s == "NIFTYIT" -> "NSE:CNXIT"
-            currentExchange == "BSE" -> "BSE:${s.replace(".BO", "")}"
-            else -> "NSE:$s"
-        }
+        sanitizeTradingViewSymbol(currentSymbol, currentExchange)
     }
 
-    // HTML with TradingView Advanced Real-Time Chart widget
-    val tvHtml = remember(tradingViewSymbol, selectedInterval) {
+    val encodedTvSymbol = remember(tradingViewSymbol) {
+        URLEncoder.encode(tradingViewSymbol, "UTF-8")
+    }
+
+    // Modern, robust TradingView Advanced Chart Embed HTML
+    val tvHtml = remember(tradingViewSymbol, selectedInterval, encodedTvSymbol) {
         """
         <!DOCTYPE html>
         <html>
         <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
             <style>
-                body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #060B19; overflow: hidden; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                html, body { width: 100%; height: 100%; background: #060B19; overflow: hidden; }
                 #tv_chart_container { width: 100%; height: 100%; }
+                iframe { width: 100%; height: 100%; border: none; }
             </style>
         </head>
         <body>
-            <div id="tv_chart_container"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-            <script type="text/javascript">
-                new TradingView.widget({
-                    "autosize": true,
-                    "symbol": "$tradingViewSymbol",
-                    "interval": "$selectedInterval",
-                    "timezone": "Asia/Kolkata",
-                    "theme": "dark",
-                    "style": "1",
-                    "locale": "in",
-                    "toolbar_bg": "#0B1528",
-                    "enable_publishing": false,
-                    "allow_symbol_change": true,
-                    "save_image": false,
-                    "container_id": "tv_chart_container",
-                    "studies": [
-                        "MASimple@tv-basicstudies",
-                        "RSI@tv-basicstudies",
-                        "BollingerBands@tv-basicstudies"
-                    ],
-                    "backgroundColor": "#060B19",
-                    "gridColor": "rgba(255, 255, 255, 0.05)"
-                });
-            </script>
+            <div id="tv_chart_container">
+                <iframe 
+                    src="https://s.tradingview.com/widgetembed/?frameElementId=tradingview_widget&symbol=$encodedTvSymbol&interval=$selectedInterval&theme=dark&style=1&timezone=Asia%2FKolkata&locale=in&symboledit=1&saveimage=0&toolbarbg=0B1528&studies=%5B%22MASimple%40tv-basicstudies%22%2C%22RSI%40tv-basicstudies%22%2C%22BollingerBands%40tv-basicstudies%22%5D&utm_source=www.tradingview.com"
+                    allowfullscreen>
+                </iframe>
+            </div>
         </body>
         </html>
         """.trimIndent()
+    }
+
+    if (searchDialogOpen) {
+        AlertDialog(
+            onDismissRequest = { searchDialogOpen = false },
+            title = { Text("Search Indian Stocks & Indices", color = TextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("Type any NSE or BSE stock symbol (e.g. RELIANCE, TCS, TATAMOTORS, SENSEX, BSE, CDSL):", fontSize = 12.sp, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = searchInput,
+                        onValueChange = { searchInput = it },
+                        placeholder = { Text("Stock Symbol", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedBorderColor = AccentBlue,
+                            unfocusedBorderColor = DarkSurfaceVariant
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (searchInput.isNotBlank()) {
+                            currentSymbol = searchInput.trim().uppercase()
+                            if (currentSymbol.contains("SENSEX") || currentSymbol == "BSE") {
+                                currentExchange = "BSE"
+                            }
+                            searchDialogOpen = false
+                            searchInput = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
+                ) {
+                    Text("Load Chart")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { searchDialogOpen = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            },
+            containerColor = DarkSurface
+        )
     }
 
     Scaffold(
@@ -382,6 +533,12 @@ fun InteractiveChartScreen(
                             ) {
                                 Text(currentExchange, color = if (currentExchange == "BSE") AccentOrange else AccentBlue, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                "($tradingViewSymbol)",
+                                fontSize = 11.sp,
+                                color = TextSecondary
+                            )
                         }
                         if (liveQuote != null) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -414,11 +571,13 @@ fun InteractiveChartScreen(
                     }
                 },
                 actions = {
-                    // Exchange Switcher Button
+                    IconButton(onClick = { searchDialogOpen = true }) {
+                        Icon(Icons.Default.Search, contentDescription = "Search Stock", tint = AccentBlue)
+                    }
                     TextButton(
                         onClick = { currentExchange = if (currentExchange == "NSE") "BSE" else "NSE" }
                     ) {
-                        Text(if (currentExchange == "NSE") "Switch to BSE" else "Switch to NSE", color = AccentBlue, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(if (currentExchange == "NSE") "BSE" else "NSE", color = AccentBlue, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
@@ -444,7 +603,7 @@ fun InteractiveChartScreen(
                         selected = isSelected,
                         onClick = {
                             currentSymbol = sym
-                            if (sym == "SENSEX") currentExchange = "BSE"
+                            if (sym == "SENSEX" || sym == "BSE") currentExchange = "BSE"
                         },
                         label = { Text(sym, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
                         colors = FilterChipDefaults.filterChipColors(
@@ -479,7 +638,7 @@ fun InteractiveChartScreen(
                     }
                 }
 
-                // Live TradingView Feed Badge
+                // TradingView Realtime Feed Badge
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
@@ -487,7 +646,7 @@ fun InteractiveChartScreen(
                             .background(BullishGreen, RoundedCornerShape(4.dp))
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("TradingView Realtime", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = BullishGreen)
+                    Text("TradingView Live", fontSize = 10.sp, fontWeight = FontWeight.SemiBold, color = BullishGreen)
                 }
             }
 
@@ -507,10 +666,15 @@ fun InteractiveChartScreen(
                             )
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
+                            settings.databaseEnabled = true
+                            settings.allowFileAccess = true
+                            settings.allowContentAccess = true
                             settings.loadWithOverviewMode = true
                             settings.useWideViewPort = true
                             settings.builtInZoomControls = true
                             settings.displayZoomControls = false
+                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            settings.userAgentString = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
                             webViewClient = WebViewClient()
                             webChromeClient = WebChromeClient()
                             loadDataWithBaseURL("https://www.tradingview.com", tvHtml, "text/html", "UTF-8", null)
@@ -522,32 +686,138 @@ fun InteractiveChartScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             }
+        }
+    }
+}
 
-            // Strategy Confluence Footer
-            Surface(
-                color = DarkSurface,
-                modifier = Modifier.fillMaxWidth()
+fun sanitizeTradingViewSymbol(symbol: String, exchange: String): String {
+    val s = symbol.trim().uppercase()
+        .replace("NSE:", "")
+        .replace("BSE:", "")
+        .replace("NSE-EQ-", "")
+        .replace("BSE-EQ-", "")
+        .replace("IDX-NSE-", "")
+        .replace("IDX-BSE-", "")
+        .replace(".NS", "")
+        .replace(".BO", "")
+        .trim()
+
+    return when {
+        s == "NIFTY 50" || s == "NIFTY" -> "NSE:NIFTY"
+        s.contains("BANK") && s.contains("NIFTY") -> "NSE:BANKNIFTY"
+        s == "SENSEX" -> "BSE:SENSEX"
+        s == "FINNIFTY" -> "NSE:FINNIFTY"
+        s == "NIFTY IT" || s == "NIFTYIT" -> "NSE:CNXIT"
+        s == "BSE 100" || s == "BSE100" -> "BSE:BSE100"
+        s == "BSE 500" || s == "BSE500" -> "BSE:BSE500"
+        s == "GOLD" || s.contains("GOLD") -> "MCX:GOLD"
+        s == "SILVER" || s.contains("SILVER") -> "MCX:SILVER"
+        s == "CRUDEOIL" || s.contains("CRUDE") -> "MCX:CRUDEOIL"
+        exchange.equals("BSE", ignoreCase = true) || s == "BSE" || s.endsWith(".BO") -> "BSE:$s"
+        else -> "NSE:$s"
+    }
+}
+
+@Composable
+fun SignalCard(
+    signal: Signal,
+    onClick: () -> Unit,
+    onOpenChart: () -> Unit = {}
+) {
+    val isBuy = signal.signalType.equals("BUY", ignoreCase = true)
+    val accentColor = if (isBuy) BullishGreen else BearishRed
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = DarkSurface)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Stars, contentDescription = null, tint = BullishGreen, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("ALL ROUNDER AI Confluence Matrix", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = TextPrimary)
-                        }
-                        Text("Risk-Reward 1:1 Strict", fontSize = 10.sp, color = AccentOrange, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "Slide 60: Supertrend(20,2) Green + Price > VWAP + MACD Bullish Crossover. Candle close confirmation required.",
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        lineHeight = 15.sp
+                        text = signal.tradingSymbol,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
                     )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .background(DarkSurfaceVariant, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(signal.exchange, color = TextSecondary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .background(accentColor.copy(alpha = 0.2f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                ) {
+                    Text(
+                        text = "${signal.signalType.uppercase()} • ${signal.timeframe}",
+                        color = accentColor,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${signal.strategyName} • ${signal.pptSlideReference}",
+                color = AccentOrange,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Price Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text("Entry", color = TextSecondary, fontSize = 11.sp)
+                    Text("₹${signal.entryPrice}", color = TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+                Column {
+                    Text("Target (1:1)", color = TextSecondary, fontSize = 11.sp)
+                    Text("₹${signal.targetPrice}", color = BullishGreen, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+                Column {
+                    Text("Stop Loss", color = TextSecondary, fontSize = 11.sp)
+                    Text("₹${signal.stopLossPrice}", color = BearishRed, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("Quality", color = TextSecondary, fontSize = 11.sp)
+                    Text("${signal.qualityScore}%", color = AccentBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                FilledTonalButton(
+                    onClick = onOpenChart,
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                    modifier = Modifier.height(28.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = DarkSurfaceVariant)
+                ) {
+                    Icon(Icons.Default.ShowChart, contentDescription = null, tint = AccentBlue, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("TradingView Chart", fontSize = 10.sp, color = AccentBlue, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -560,7 +830,7 @@ val FallbackSignals = listOf(
         tradingSymbol = "NIFTY 50",
         exchange = "NSE",
         strategyId = "DAILY_INTRADAY_5M",
-        strategyName = "Daily Intraday Technique (5-Minute)",
+        strategyName = "Daily Intraday 5M Supertrend + MACD",
         pptSlideReference = "Slides 59-62",
         signalType = "BUY",
         status = "CONFIRMED",
@@ -570,13 +840,13 @@ val FallbackSignals = listOf(
         stopLossPrice = 24310.0,
         riskRewardRatio = 1.0,
         qualityScore = 96.0,
-        marketTrend = "Intraday Reversal Confluence",
+        marketTrend = "Bullish Reversal Confluence",
         confirmationMode = "CANDLE_CLOSE",
-        analysisSummary = "Triple Confluence: Supertrend(20,2) Bullish, Price > VWAP, MACD Bullish crossover on 5m chart. Strict 1:1 Target & Stop Loss configured."
+        analysisSummary = "Supertrend(20,2) Bullish, Price > VWAP, MACD Bullish crossover. Strict 1:1 Target."
     ),
     Signal(
-        signalId = "sig-reliance-lb-02",
-        tradingSymbol = "RELIANCE",
+        signalId = "sig-banknifty-lb-02",
+        tradingSymbol = "BANK NIFTY",
         exchange = "NSE",
         strategyId = "LOW_BREAK_CLOSE_UPSIDE",
         strategyName = "Low Break, Close Upside",
@@ -584,70 +854,32 @@ val FallbackSignals = listOf(
         signalType = "BUY",
         status = "CONFIRMED",
         timeframe = "15m",
-        entryPrice = 1363.0,
-        targetPrice = 1373.0,
-        stopLossPrice = 1353.0,
+        entryPrice = 51240.0,
+        targetPrice = 51320.0,
+        stopLossPrice = 51160.0,
         riskRewardRatio = 1.0,
-        qualityScore = 93.0,
-        marketTrend = "Reversal from Liquidity Sweep",
+        qualityScore = 90.0,
+        marketTrend = "Reversal from Downtrend",
         confirmationMode = "CANDLE_CLOSE",
-        analysisSummary = "Prior red candle low broken, followed by strong green candle closing upside with PPT candle body rules satisfied."
+        analysisSummary = "Breaks prior swing low then aggressively reverses and closes on upside with huge demand absorption."
     ),
     Signal(
-        signalId = "sig-tcs-bse-hammer-03",
-        tradingSymbol = "TCS.BO",
-        exchange = "BSE",
-        strategyId = "HAMMER",
-        strategyName = "Hammer Bottom Reversal",
-        pptSlideReference = "Slides 5-8",
-        signalType = "BUY",
-        status = "CONFIRMED",
-        timeframe = "15m",
-        entryPrice = 2380.2,
-        targetPrice = 2405.0,
-        stopLossPrice = 2355.4,
-        riskRewardRatio = 1.0,
-        qualityScore = 91.5,
-        marketTrend = "Support Demand Absorption",
-        confirmationMode = "CANDLE_CLOSE",
-        analysisSummary = "Clear 4-bar downtrend terminated with a classic Hammer on BSE. Lower shadow >= 2.4x body length. Confirmed close above high."
-    ),
-    Signal(
-        signalId = "sig-tatamotors-maru-04",
-        tradingSymbol = "TATAMOTORS",
+        signalId = "sig-reliance-hammer-03",
+        tradingSymbol = "RELIANCE",
         exchange = "NSE",
-        strategyId = "MARUBOZU",
-        strategyName = "Marubozu Momentum Breakout",
-        pptSlideReference = "Slides 33-36",
+        strategyId = "HAMMER",
+        strategyName = "Institutional Hammer Reversal",
+        pptSlideReference = "Slides 1-12",
         signalType = "BUY",
         status = "CONFIRMED",
         timeframe = "15m",
-        entryPrice = 790.0,
-        targetPrice = 804.0,
-        stopLossPrice = 776.0,
+        entryPrice = 1363.0,
+        targetPrice = 1380.0,
+        stopLossPrice = 1346.0,
         riskRewardRatio = 1.0,
-        qualityScore = 94.0,
-        marketTrend = "Institutional Order Flow Surge",
+        qualityScore = 93.5,
+        marketTrend = "Support Zone Bounce",
         confirmationMode = "CANDLE_CLOSE",
-        analysisSummary = "Bullish Marubozu: Candle body represents 94% of entire range with 2.1x average volume. Open = Low with negligible upper wick."
-    ),
-    Signal(
-        signalId = "sig-sensex-gc-05",
-        tradingSymbol = "SENSEX",
-        exchange = "BSE",
-        strategyId = "GOLDEN_CROSS",
-        strategyName = "Golden Cross & 200 EMA Re-entry",
-        pptSlideReference = "Slides 51-58",
-        signalType = "BUY",
-        status = "CONFIRMED",
-        timeframe = "Daily",
-        entryPrice = 79880.0,
-        targetPrice = 80680.0,
-        stopLossPrice = 79080.0,
-        riskRewardRatio = 1.0,
-        qualityScore = 95.5,
-        marketTrend = "Macro Bullish Swing Trend",
-        confirmationMode = "CANDLE_CLOSE",
-        analysisSummary = "S&P BSE Sensex 50 EMA trading above 200 EMA with clean retest bounce off the rising 200-day moving average."
+        analysisSummary = "Classic Hammer with long lower shadow >= 2x body formed right on multi-day horizontal demand zone."
     )
 )

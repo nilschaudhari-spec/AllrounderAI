@@ -79,6 +79,20 @@ interface AllRounderApiService {
     @GET("api/v1/papertrading/portfolio")
     suspend fun getPaperPortfolio(): Response<PaperPortfolioResponse>
 
+    @POST("api/v1/papertrading/order")
+    suspend fun placePaperOrder(
+        @Body request: PaperOrderRequest,
+        @Query("quantity") quantity: Int = 15
+    ): Response<PaperOrderDto>
+
+    @POST("api/v1/papertrading/close/{symbol}")
+    suspend fun closePaperPosition(
+        @Path("symbol") symbol: String
+    ): Response<Any>
+
+    @POST("api/v1/papertrading/reset")
+    suspend fun resetPaperPortfolio(): Response<Any>
+
     // ========================================================================
     // HAMMER STRATEGY INSTITUTIONAL API
     // ========================================================================
@@ -147,20 +161,7 @@ data class BacktestApiRequest(
     val riskRewardRatio: Double = 1.0
 )
 
-data class PaperPortfolioResponse(
-    val account: PaperAccountDto,
-    val positions: List<Any>,
-    val orders: List<Any>
-)
 
-data class PaperAccountDto(
-    val accountId: String,
-    val providerName: String,
-    val balance: Double,
-    val availableMargin: Double,
-    val realizedPnl: Double,
-    val unrealizedPnl: Double
-)
 
 object ApiClient {
     private const val BASE_URL = "http://allrounderai.runasp.net/"
